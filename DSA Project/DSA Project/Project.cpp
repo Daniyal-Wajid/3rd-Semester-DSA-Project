@@ -4,31 +4,11 @@
 using namespace sf;
 using namespace std;
 
-
-enum NodeType {
-    EMPTY,
-    OBSTACLE,
-    START,
-    END,
-    PATH
-};
-
-class Node {
-public:
-    int x;
-    int y;
-    NodeType type;
-    vector<Node*> neighbors;
-    Node* previous;
-    int distance;
-
-    Node(int x, int y, NodeType type) : x(x), y(y), type(type), previous(nullptr), distance(numeric_limits<int>::max()) {}
-};
-
 // User-defined simple queue
+template <typename T>
 class Queue {
 public:
-    void enqueue(Node* value) {
+    void enqueue(const T& value) {
         elements.push_back(value);
     }
 
@@ -38,11 +18,12 @@ public:
         }
     }
 
-    Node* front() const {
+    T front() const {
         if (!empty()) {
             return elements[0];
         }
-        return nullptr;
+        // Return a default value or throw an exception for an empty queue
+        return T();
     }
 
     bool empty() const {
@@ -54,18 +35,19 @@ public:
     }
 
 private:
-    vector<Node*> elements;
+    vector<T> elements;
 };
-
 
 Font font;
 class Button {
 public:
     RectangleShape shape;
     Text text;
+    bool selected;
+    Color originalColor;
 
     Button(float x, float y, float width, float height, Color color, const string& buttonText)
-        : shape(Vector2f(width, height)), text() {
+        : shape(Vector2f(width, height)), text(), selected(false) ,originalColor(color) {
         shape.setPosition(x, y);
         shape.setFillColor(color);
         shape.setOutlineColor(Color::Black);
@@ -75,13 +57,26 @@ public:
         text.setString(buttonText);
         text.setCharacterSize(32);
         text.setFillColor(Color::Black);
-        float textX = x-5 + (width - text.getLocalBounds().width) / 2;
-        float textY = y + (height - text.getLocalBounds().height) / 2 -5;
+        float textX = x - 5 + (width - text.getLocalBounds().width) / 2;
+        float textY = y + (height - text.getLocalBounds().height) / 2 - 5;
         text.setPosition(textX, textY);
+        updateColor();
+    }
+    void setSelected(bool isSelected) {
+        selected = isSelected;
+        updateColor();
     }
 
     bool isClicked(float mouseX, float mouseY) const {
         return shape.getGlobalBounds().contains(mouseX, mouseY);
+    }
+    void updateColor() {
+        if (selected) {
+            shape.setFillColor(Color(255, 240, 52)); // Change color when selected
+        }
+        else {
+            shape.setFillColor(originalColor); // Use the original color when not selected
+        }
     }
 };
 
@@ -90,7 +85,24 @@ const int gridSizeY = 22;
 const int windowWidth = 1366;
 const int windowHeight = 768;
 
+enum NodeType {
+    EMPTY,
+    OBSTACLE,
+    START,
+    END,
+    PATH
+};
 
+struct Node {
+    int x;
+    int y;
+    NodeType type;
+    vector<Node*> neighbors;
+    Node* previous;
+    int distance;
+
+    Node(int x, int y, NodeType type) : x(x), y(y), type(type), previous(nullptr), distance(numeric_limits<int>::max()) {}
+};
 
 vector<vector<Node>> graph(gridSizeX, vector<Node>(gridSizeY, Node(0, 0, EMPTY)));
 
@@ -153,7 +165,7 @@ void generateMaze() {
 }
 
 bool isUnreachable(Node* start, Node* end) {
-    Queue q;
+    Queue<Node*> q;
     q.enqueue(start);
 
     start->distance = 0;
@@ -168,6 +180,7 @@ bool isUnreachable(Node* start, Node* end) {
                 q.enqueue(neighbor);
 
                 if (neighbor == end) {
+                    // Found the end node, stop the BFS
                     clearDistances();
                     return false;
                 }
@@ -190,7 +203,7 @@ void findShortestPath() {
         return;
     }
 
-    Queue q;
+    Queue<Node*> q;
     q.enqueue(startNode);
 
     startNode->distance = 0;
@@ -220,6 +233,9 @@ void findShortestPath() {
     }
 
     clearDistances();
+}
+void updateButtonSelection(float mouseX, float mouseY, Button& button) {
+    button.setSelected(button.isClicked(mouseX, mouseY));
 }
 // SFML window and event handling
 int main() {
@@ -257,8 +273,12 @@ int main() {
             if (event.type == sf::Event::MouseButtonPressed) {
                 float mouseX = static_cast<float>(event.mouseButton.x);
                 float mouseY = static_cast<float>(event.mouseButton.y);
-
-                // Check if the mouse click is on any button
+                        // Check if the mouse click is on any button
+                updateButtonSelection(mouseX, mouseY, startButton);
+                updateButtonSelection(mouseX, mouseY, endButton);
+                updateButtonSelection(mouseX, mouseY, findPathButton);
+                updateButtonSelection(mouseX, mouseY, mazeButton);
+                updateButtonSelection(mouseX, mouseY, exitButton);
                 if (startButton.isClicked(mouseX, mouseY)) {
                     addingStart = true;
                     addingEnd = false;
@@ -338,7 +358,7 @@ int main() {
                 Color blockColor;
                 switch (graph[i][j].type) {
                 case EMPTY:
-                    blockColor = Color(0x2E, 0x2F, 0x2F); // Default color
+                    blockColor = Color(184, 189, 181); // Default color
                     break;
                 case OBSTACLE:
                     blockColor = Color(0x12, 0x13, 0x0F);
@@ -350,7 +370,7 @@ int main() {
                     blockColor = Color::Red;
                     break;
                 case PATH:
-                    blockColor = Color(0xB6, 0xC4, 0xB6); // Color for the path
+                    blockColor = Color(248, 255, 28); // Color for the path
                     break;
                 default:
                     blockColor = Color::White; // Default color
@@ -363,6 +383,7 @@ int main() {
 
         window.display();
     }
+   
 
     return 0;
 }
